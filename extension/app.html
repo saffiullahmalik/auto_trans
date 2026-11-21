@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Translation Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap">
+  <link rel="stylesheet" href="vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">SundarSTEM <span>Translation Assistant</span></div>
+    <div class="topbar-right">
+      <span id="user-label" class="muted"></span>
+      <button id="btn-settings" class="ghost" type="button" hidden>Settings</button>
+      <button id="btn-logout" class="ghost" type="button" hidden>Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Login -->
+    <section id="view-login" class="view card narrow" hidden>
+      <h1>Log in</h1>
+      <p class="muted">Use your SundarSTEM translator account.</p>
+      <form id="login-form">
+        <label>Email or username<input name="identifier" autocomplete="username" required></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <p id="login-error" class="error" hidden></p>
+        <button type="submit" class="primary">Log in</button>
+      </form>
+      <p class="hint">The portal allows one login at a time, so logging in here signs you out of the portal in other tabs.</p>
+    </section>
+
+    <!-- Load question IDs -->
+    <section id="view-setup" class="view card narrow" hidden>
+      <h1>Your assigned questions</h1>
+      <label>Language
+        <select id="setup-language">
+          <option value="urdu">Urdu — اردو</option>
+          <option value="sindhi">Sindhi — سنڌي</option>
+        </select>
+      </label>
+      <label>Question IDs
+        <textarea id="setup-ids" rows="10" placeholder="Paste the whole Question ID column from your sheet here.&#10;&#10;7154&#10;7153&#10;7152"></textarea>
+      </label>
+      <p id="setup-parse" class="muted"></p>
+      <div class="row">
+        <button id="btn-load" class="primary" type="button" disabled>Load questions</button>
+        <button id="btn-resume" class="ghost" type="button" hidden>Resume previous list</button>
+      </div>
+    </section>
+
+    <!-- Queue overview -->
+    <section id="view-queue" class="view card" hidden>
+      <div class="row spread">
+        <h1 id="queue-title">Questions</h1>
+        <div class="row">
+          <button id="btn-new-list" class="ghost" type="button">New list</button>
+          <button id="btn-export" class="ghost" type="button">Download results (CSV)</button>
+          <button id="btn-start" class="primary" type="button">Start translating</button>
+        </div>
+      </div>
+      <p id="queue-summary" class="muted"></p>
+      <div class="table-wrap">
+        <table class="queue">
+          <thead><tr><th>#</th><th>ID</th><th>Topic</th><th>Status on portal</th><th>Progress</th><th></th></tr></thead>
+          <tbody id="queue-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Editor -->
+    <section id="view-editor" class="view" hidden>
+      <div class="editor-head card">
+        <div>
+          <div class="progress-line"><span id="ed-position"></span> · <strong id="ed-id"></strong> · <span id="ed-meta" class="muted"></span></div>
+          <div id="ed-badges" class="badges"></div>
+        </div>
+        <div class="row">
+          <button id="btn-back" class="ghost" type="button">← List</button>
+          <button id="btn-prev" class="ghost" type="button">Previous</button>
+          <button id="btn-skip" class="ghost" type="button">Skip</button>
+          <button id="btn-regen" class="ghost" type="button">Regenerate AI</button>
+          <button id="btn-submit" class="primary" type="button">Send for review <kbd>Ctrl</kbd>+<kbd>Enter</kbd></button>
+        </div>
+      </div>
+      <div id="ed-notice" class="notice" hidden></div>
+      <div id="ed-fields"></div>
+    </section>
+  </main>
+
+  <!-- Settings -->
+  <dialog id="dlg-settings">
+    <form method="dialog" id="settings-form">
+      <h2>Settings</h2>
+      <label class="check"><input type="checkbox" name="aiEnabled"> Suggest translations with AI</label>
+      <label>Claude API key<input name="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off"></label>
+      <label>Model<input name="model" placeholder="claude-opus-5-5"></label>
+      <label>Glossary <span class="muted">(one per line: English = translation)</span>
+        <textarea name="glossary" rows="6" placeholder="line of symmetry = تشاکل کی لکیر"></textarea>
+      </label>
+      <p class="muted" id="tm-count"></p>
+      <div class="row spread">
+        <button type="button" id="btn-clear-tm" class="ghost">Clear translation memory</button>
+        <div class="row">
+          <button value="cancel" class="ghost">Cancel</button>
+          <button value="save" class="primary">Save</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Session expired -->
+  <dialog id="dlg-relogin">
+    <form id="relogin-form">
+      <h2>Please log in again</h2>
+      <p class="muted">Your portal session ended (you may have logged in somewhere else). Your work is saved.</p>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <p id="relogin-error" class="error" hidden></p>
+      <div class="row"><button type="submit" class="primary">Continue</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/katex/katex.min.js"></script>
+  <script src="vendor/katex/contrib/auto-render.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

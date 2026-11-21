@@ -1,0 +1,8 @@
+{
+  "_comment": "Defaults for every teacher who installs this copy. An admin can fill in apiKey before sharing the extension; teachers can still change these in Settings.",
+  "language": "urdu",
+  "aiEnabled": true,
+  "apiKey": "",
+  "model": "claude-opus-5-5",
+  "glossary": ""
+}
