@@ -13,6 +13,17 @@ await build({
   minify: true,
 });
 
+await build({
+  entryPoints: ['src/xlsx-entry.js'],
+  bundle: true,
+  format: 'esm',
+  platform: 'browser',
+  target: 'chrome110',
+  outfile: 'extension/lib/xlsx.bundle.js',
+  legalComments: 'eof',
+  minify: true,
+});
+
 const katex = 'node_modules/katex/dist';
 const out = 'extension/vendor/katex';
 rmSync(out, { recursive: true, force: true });
@@ -22,4 +33,4 @@ cpSync(`${katex}/katex.min.css`, `${out}/katex.min.css`);
 cpSync(`${katex}/contrib/auto-render.min.js`, `${out}/contrib/auto-render.min.js`);
 cpSync(`${katex}/fonts`, `${out}/fonts`, { recursive: true });
 cpSync('node_modules/katex/LICENSE', `${out}/LICENSE`);
-console.log('Built extension/lib/ai.bundle.js and copied KaTeX.');
+console.log('Built extension/lib/ai.bundle.js, extension/lib/xlsx.bundle.js and copied KaTeX.');

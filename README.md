@@ -44,6 +44,42 @@ After each send, the extension re-reads the question from the portal and marks i
 
 Every sentence a teacher sends is remembered on that computer. When the same English sentence comes up again, even with different numbers (`order $5$` vs `order $2$`), the saved translation is filled in instantly, with no AI call. You can clear it in **Settings**.
 
+## Reviewer mode
+
+When a **reviewer** account logs in, the extension opens the reviewer screens instead of the translator ones. The same extension serves both roles.
+
+### Dashboard
+- **Totals for the chosen language:** questions in total, translated, waiting for review, approved, sent back, and left to translate.
+- **Load progress:** one row per assigned unit, covering every teacher in the current assignments. Each row shows questions, left to translate, waiting review, approved and sent back, a progress bar, and who translated them, with a subtotal per teacher and a grand total.
+
+### Review translations
+1. **Load review queue**, then group it **by translator** or **by unit**. Each group shows how many translations have problems.
+2. Pick a group to open its translations one at a time, side by side: English on the left, Urdu on the right, with math and the images from both sides.
+3. **Automatic checks** appear above the Urdu:
+   - **Errors:** numbers from the English missing in the Urdu, step images missing, empty or missing steps.
+   - **Warnings:** numbers not in the English, numbers not formatted as math (`$…$`), bold or list formatting lost, English words left untranslated. An English term in brackets, like "(Rotational Symmetry)", is fine.
+4. **Keys:**
+   - **Ctrl+Enter** approves the translation and opens the next one.
+   - **Ctrl+Shift+Enter** sends it back. Pick quick reasons ("Formula missing or changed", "Image missing", …), add a note, and press Ctrl+Enter. The translator sees the reason on their screen.
+   - **Skip** and **Previous** move through the list.
+
+English text can't be edited here, because the portal's reviewer screens don't offer it.
+
+### Teacher assignments
+- Starts from the current assignment list. Add or remove teachers and units.
+- **Find units that still need translation:** lists every unit in every book with questions still to translate. Hide the ones already assigned, filter by book, and click **Assign** next to a teacher.
+- **Save assignments** keeps the list in your extension; the dashboard progress uses it.
+- **Download Excel / Download CSV** produces a sheet in the same layout as the coordinator's sheet.
+- **Teachers load a new sheet** with **Import sheet** on their "Assigned units" tab. It replaces the list built into the extension.
+
+### Portal calls used
+| Step | Call |
+| --- | --- |
+| Review queue | `GET /api/question-review/pending?translation_status[]=pending_urdu_review&per_page=100&page=N` (the translator's name comes with each item) |
+| Unit progress | the same list with `unit[]=<unit>` and the four Urdu statuses, filtered by class and subject in the extension |
+| Totals | `GET /api/admin/questions/statistics` |
+| Approve / send back | `POST /api/question-translations/{translationId}/review` with `{"status":"approved"}` or `{"status":"rejected","rejection_comment":"…"}` |
+
 ## Updating teacher assignments (admin)
 
 Assignments ship inside the extension as `extension/assignments.json`. When the sheet changes:
@@ -128,10 +164,14 @@ npm test
 TRANSLATOR_EMAIL=... TRANSLATOR_PASSWORD=... npm run e2e
 ```
 
-The end-to-end test:
-- loads the unpacked extension in Chromium
-- logs into the real portal and reads real questions
-- intercepts the submit call (nothing is sent to review) and blocks any other write
-- fakes the Claude API
+```bash
+REVIEWER_EMAIL=... REVIEWER_PASSWORD=... node tests/e2e/reviewer.mjs
+```
+
+The end-to-end tests:
+- load the unpacked extension in Chromium
+- log into the real portal and read real questions
+- intercept the submit call and the approve / send-back calls, so nothing is really sent or reviewed, and block any other write
+- fake the translation providers
 
 Screenshots go to `tests/e2e/out/`.

@@ -1,5 +1,8 @@
 import { parseQuestionIds } from './lib/ids.js';
 import { resolveUnit, belongsToUnit, unitLabel, matchTeacher } from './lib/units.js';
+import { parseAssignmentRows } from './lib/assign-sheet.js';
+import { readSheetFile } from './lib/sheet-io.js';
+import { initReviewer } from './reviewer.js';
 import { compareMath, extractMath, plainText } from './lib/math.js';
 import { memoryKey, memoryValue, applyMemory } from './lib/memory.js';
 import {
@@ -184,12 +187,12 @@ $('#login-form').addEventListener('submit', async (ev) => {
   $('#login-error').hidden = true;
   try {
     const { token, user } = await login(identifier, fd.get('password'));
-    if (user?.role && user.role !== 'translator' && user.role !== 'admin') {
-      throw new Error(`This account's role is "${user.role}". A translator account is needed.`);
+    if (user?.role && !['translator', 'reviewer', 'admin'].includes(user.role)) {
+      throw new Error(`This account's role is "${user.role}". A translator or reviewer account is needed.`);
     }
     await setAuth({ token, user, identifier });
     ev.target.reset();
-    await openSetup();
+    await openHome();
   } catch (e) {
     $('#login-error').textContent = e.message;
     $('#login-error').hidden = false;
@@ -206,12 +209,12 @@ $('#btn-logout').addEventListener('click', async () => {
 // ---------------------------------------------------------------- setup view
 const setup = { tab: 'units', assignments: null, options: null, units: [] };
 
-for (const t of document.querySelectorAll('.tab')) {
+for (const t of document.querySelectorAll('.tab[data-tab]')) {
   t.addEventListener('click', () => selectTab(t.dataset.tab));
 }
 function selectTab(tab) {
   setup.tab = tab;
-  for (const t of document.querySelectorAll('.tab')) t.setAttribute('aria-selected', String(t.dataset.tab === tab));
+  for (const t of document.querySelectorAll('.tab[data-tab]')) t.setAttribute('aria-selected', String(t.dataset.tab === tab));
   $('#tab-units').hidden = tab !== 'units';
   $('#tab-ids').hidden = tab !== 'ids';
   updateLoadButton();
@@ -236,15 +239,41 @@ function updateLoadButton() {
 }
 
 async function loadAssignments() {
-  if (setup.assignments) return setup.assignments;
-  try {
-    const res = await fetch(chrome.runtime.getURL('assignments.json'));
-    setup.assignments = res.ok ? await res.json() : { teachers: [] };
-  } catch {
-    setup.assignments = { teachers: [] };
-  }
+  if (!setup.assignments) setup.assignments = await getAssignments();
   return setup.assignments;
 }
+
+/** Teacher assignments: an imported/saved sheet if there is one, otherwise the copy built into the extension. */
+async function getAssignments() {
+  const saved = await store.get('assignments');
+  if (saved?.teachers?.length) return saved;
+  try {
+    const res = await fetch(chrome.runtime.getURL('assignments.json'));
+    return res.ok ? await res.json() : { teachers: [] };
+  } catch {
+    return { teachers: [] };
+  }
+}
+
+async function setAssignments(a) {
+  await store.set('assignments', { ...a, savedAt: new Date().toISOString() });
+  setup.assignments = null;
+}
+
+$('#setup-import').addEventListener('change', async (ev) => {
+  const file = ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  try {
+    const parsed = parseAssignmentRows(await readSheetFile(file));
+    if (!parsed.teachers.length) throw new Error('no teacher rows found');
+    await setAssignments({ title: parsed.title, language: state.settings.language, teachers: parsed.teachers, generatedFrom: file.name });
+    toast(`Imported ${file.name}: ${parsed.teachers.length} teachers.`, 4000);
+    await openSetup();
+  } catch (e) {
+    toast(`Could not read ${file.name}: ${e.message}`, 6000);
+  }
+});
 
 function renderUnitList() {
   const list = $('#unit-list');
@@ -602,11 +631,11 @@ async function openEditor(index) {
   const grade = q.topic?.unit?.subject?.grade?.name;
   $('#ed-meta').textContent = [grade && `Grade ${grade}`, q.topic?.unit?.unit_name, q.topic?.topic_name].filter(Boolean).join(' › ');
   const st = translationStatus(q, state.queue.language);
-  $('#ed-badges').replaceChildren(
+  $('#ed-badges').replaceChildren(...[
     el('span', { class: 'pill' }, q.question_type?.replace(/_/g, ' ') ?? ''),
     el('span', { class: 'pill info' }, `${L.label} — ${L.native}`),
     st ? el('span', { class: `pill ${st === 'rejected' ? 'err' : ''}` }, st.replace(/_/g, ' ')) : null,
-  );
+  ].filter(Boolean));
 
   const notice = $('#ed-notice');
   const comment = rejectionComment(q, state.queue.language);
@@ -975,6 +1004,14 @@ $('#btn-clear-tm').addEventListener('click', async () => {
   $('#tm-count').textContent = 'Translation memory cleared.';
 });
 
+// ---------------------------------------------------------------- reviewer mode
+const reviewer = initReviewer({ state, store, $, el, toast, show, withSession, htmlBlock, getAssignments, setAssignments });
+
+const isReviewer = () => ['reviewer', 'admin'].includes(state.auth?.user?.role);
+function openHome() {
+  return isReviewer() ? reviewer.openReviewer() : openSetup();
+}
+
 // ---------------------------------------------------------------- boot
 async function loadDefaults() {
   try {
@@ -1002,5 +1039,5 @@ async function loadDefaults() {
   } catch (e) {
     if (e instanceof SessionExpiredError) { await setAuth(null); show('login'); return; }
   }
-  await openSetup();
+  await openHome();
 })();

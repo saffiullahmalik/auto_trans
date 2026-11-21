@@ -2,3 +2,4 @@ node_modules/
 tests/e2e/out/
 tests/e2e/.profile/
 *.zip
+tests/e2e/.profile-reviewer/

@@ -63,6 +63,7 @@
           </div>
         </details>
         <p id="units-status" class="muted"></p>
+        <p class="hint">Got a new assignment sheet? <label class="link-btn">Import sheet<input id="setup-import" type="file" accept=".xlsx,.xls,.csv" hidden></label></p>
       </div>
 
       <div id="tab-ids" class="tab-panel" hidden>
@@ -114,6 +115,101 @@
       </div>
       <div id="ed-notice" class="notice" hidden></div>
       <div id="ed-fields"></div>
+    </section>
+    <!-- Reviewer home: dashboard, review queue, assignments -->
+    <section id="view-reviewer" class="view" hidden>
+      <div class="card">
+        <div class="row spread">
+          <div class="tabs" role="tablist">
+            <button type="button" role="tab" class="tab" data-rtab="dashboard" aria-selected="true">Dashboard</button>
+            <button type="button" role="tab" class="tab" data-rtab="review" aria-selected="false">Review translations</button>
+            <button type="button" role="tab" class="tab" data-rtab="assign" aria-selected="false">Teacher assignments</button>
+          </div>
+          <label class="inline">Language
+            <select id="rv-language">
+              <option value="urdu">Urdu — اردو</option>
+              <option value="sindhi">Sindhi — سنڌي</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="rtab-dashboard" class="tab-panel">
+          <div id="rv-stats" class="stats"></div>
+          <div class="row spread section-head">
+            <h2>Progress of assigned units</h2>
+            <button id="rv-load-progress" type="button" class="ghost">Load progress</button>
+          </div>
+          <p id="rv-progress-status" class="muted">Shows translated / approved / left for every unit in the current teacher assignments.</p>
+          <div class="table-wrap"><table class="queue" id="rv-progress"></table></div>
+        </div>
+
+        <div id="rtab-review" class="tab-panel" hidden>
+          <div class="row spread section-head">
+            <div class="row">
+              <span class="muted">Group by</span>
+              <label class="check"><input type="radio" name="rv-group" value="translator" checked> Translator</label>
+              <label class="check"><input type="radio" name="rv-group" value="unit"> Unit</label>
+            </div>
+            <button id="rv-load-queue" type="button" class="primary">Load review queue</button>
+          </div>
+          <p id="rv-queue-status" class="muted">Loads every translation waiting for your review.</p>
+          <div id="rv-groups" class="group-list"></div>
+        </div>
+
+        <div id="rtab-assign" class="tab-panel" hidden>
+          <p class="muted">Edit who translates which units, then download the sheet for teachers (Excel or CSV) — they load it with “Import sheet” in their extension.</p>
+          <div class="row section-head">
+            <input id="as-title" placeholder="Sheet title" class="grow">
+            <input id="as-new-teacher" placeholder="New teacher name">
+            <button id="as-add-teacher" type="button" class="ghost">Add teacher</button>
+          </div>
+          <div id="as-teachers"></div>
+          <details id="as-find" class="section-head">
+            <summary>Find units that still need translation (all books)</summary>
+            <div class="row section-head">
+              <select id="as-subject"><option value="">All books</option></select>
+              <label class="check"><input type="checkbox" id="as-hide-assigned" checked> Hide units already assigned</label>
+              <button id="as-load-units" type="button" class="ghost">Load units</button>
+            </div>
+            <p id="as-units-status" class="muted"></p>
+            <div class="table-wrap"><table class="queue" id="as-units"></table></div>
+          </details>
+          <div class="row section-head">
+            <button id="as-save" type="button" class="primary">Save assignments</button>
+            <button id="as-xlsx" type="button" class="ghost">Download Excel</button>
+            <button id="as-csv" type="button" class="ghost">Download CSV</button>
+            <label class="ghost-btn">Import sheet<input id="as-import" type="file" accept=".xlsx,.xls,.csv" hidden></label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reviewer: one translation at a time -->
+    <section id="view-review" class="view" hidden>
+      <div class="editor-head card">
+        <div>
+          <div class="progress-line"><span id="rv-position"></span> · <strong id="rv-id"></strong> · <span id="rv-meta" class="muted"></span></div>
+          <div id="rv-badges" class="badges"></div>
+        </div>
+        <div class="row">
+          <button id="rv-back" class="ghost" type="button">← Dashboard</button>
+          <button id="rv-prev" class="ghost" type="button">Previous</button>
+          <button id="rv-skip" class="ghost" type="button">Skip</button>
+          <button id="rv-reject" class="ghost danger" type="button">Send back <kbd>Ctrl</kbd>+<kbd>⇧</kbd>+<kbd>Enter</kbd></button>
+          <button id="rv-approve" class="primary" type="button">Approve <kbd>Ctrl</kbd>+<kbd>Enter</kbd></button>
+        </div>
+      </div>
+      <div id="rv-flags" class="flags"></div>
+      <div id="rv-sendback" class="card sendback" hidden>
+        <strong>Why is it going back to the translator?</strong>
+        <div id="rv-reasons" class="chips"></div>
+        <textarea id="rv-comment" rows="3" placeholder="Reason the translator will see (required)"></textarea>
+        <div class="row">
+          <button id="rv-sendback-confirm" class="primary" type="button">Send back</button>
+          <button id="rv-sendback-cancel" class="ghost" type="button">Cancel</button>
+        </div>
+      </div>
+      <div id="rv-fields"></div>
     </section>
   </main>
 
