@@ -66,7 +66,7 @@ Choose the provider in **Settings → Translation provider** and paste that prov
 | Provider | Get a key | Quality for school math | Notes |
 | --- | --- | --- | --- |
 | **Claude** (default) | [console.anthropic.com](https://console.anthropic.com) → API keys | Best: natural, grade-appropriate wording; follows the glossary | `claude-opus-5-5` by default; refusal fallback enabled |
-| **Gemini** | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Good; follows the glossary | Model `gemini-2.5-flash` by default, changeable in Settings |
+| **Gemini** | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Good; follows the glossary | Model `gemini-3.8-flash` by default (low thinking level, auto-retry when Google is busy), changeable in Settings |
 | **Google Translate** | Google Cloud Console → enable **Cloud Translation API** → Credentials → **Create API key** | Literal machine translation; may sound unnatural; glossary not used | Cheapest; supports Urdu (`ur`) and Sindhi (`sd`) |
 
 All three get the same protection:

@@ -72,3 +72,17 @@ test('Google Translate: a formula lost in translation is caught', async () => {
   const fetch = fakeFetch((url, body) => ({ json: { data: { translations: body.q.map(() => ({ translatedText: '<p>بغیر فارمولا</p>' })) } } }));
   await assert.rejects(googleTranslate({ apiKey: 'k', language: 'urdu', question }, fetch), /M1/);
 });
+
+test('Gemini: retries when Google is busy, uses low thinking on Gemini 3', async () => {
+  let n = 0;
+  const fetch = fakeFetch((url, body) => {
+    n++;
+    if (n === 1) return { status: 503, json: { error: { message: 'high demand' } } };
+    const input = JSON.parse(body.contents[0].parts[0].text);
+    return { json: { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ question_html: fakeUrdu(input.question_html), steps_html: input.steps_html.map(fakeUrdu) }) }] } }] } };
+  });
+  const r = await geminiTranslate({ apiKey: 'k', model: 'gemini-3.8-flash', language: 'urdu', question }, fetch);
+  assert.equal(fetch.calls.length, 2);
+  assert.deepEqual(fetch.calls[1].body.generationConfig.thinkingConfig, { thinkingLevel: 'low' });
+  assert.match(r.questionHtml, /\$S\$/);
+});
