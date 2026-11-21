@@ -89,6 +89,53 @@ export class PortalClient {
     return d?.data?.question ?? d?.data ?? d;
   }
 
+  /** One page of the translator question list. params: [[key, value], ...] (repeat keys for arrays). */
+  async listQuestions(params) {
+    const qs = new URLSearchParams(params);
+    const d = await this.request('GET', `/translator/questions?${qs}`);
+    const page = d?.data ?? {};
+    return {
+      questions: Array.isArray(page.data) ? page.data : [],
+      lastPage: page.last_page ?? 1,
+      total: page.total ?? 0,
+      filters: page.filters ?? d?.filters ?? {},
+    };
+  }
+
+  /** Filter options the portal offers (units, subjects, classes, ...). */
+  async filterOptions() {
+    const { filters } = await this.listQuestions([['page', 1], ['per_page', 1]]);
+    const opts = filters?.options ?? {};
+    const values = (list) => [...new Set((list ?? []).map((o) => o?.value ?? o).filter(Boolean))];
+    return { units: values(opts.unit), subjects: values(opts.subject), grades: values(opts.grade) };
+  }
+
+  /**
+   * All questions of one unit that still need translation in `language`
+   * (pending or rejected). The portal's unit filter is used on the server;
+   * class and subject are checked here because the portal's own subject/class
+   * filters don't combine with it.
+   */
+  async questionsForUnit(portalUnit, language, onPage) {
+    const all = [];
+    let page = 1;
+    let lastPage = 1;
+    do {
+      const res = await this.listQuestions([
+        ['page', page],
+        ['per_page', 100],
+        ['unit[]', portalUnit],
+        ['translation_status[]', `pending_${language}_translation`],
+        ['translation_status[]', `${language}_rejected`],
+      ]);
+      all.push(...res.questions);
+      lastPage = res.lastPage;
+      onPage?.(page, lastPage);
+      page++;
+    } while (page <= lastPage);
+    return all;
+  }
+
   async submitTranslation(id, form) {
     return this.request('POST', `/translator/questions/${encodeURIComponent(id)}/submit`, form);
   }

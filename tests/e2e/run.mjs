@@ -13,6 +13,9 @@ import assert from 'node:assert/strict';
 const email = process.env.TRANSLATOR_EMAIL;
 const password = process.env.TRANSLATOR_PASSWORD;
 const ids = (process.env.TEST_IDS || '7154,7146').split(',');
+const TEACHER = process.env.TEST_TEACHER || 'Imdad Hussain';
+const UNIT_LABEL = process.env.TEST_UNIT || 'Class 3 · Shapes';
+const UNIT_COUNT = process.env.TEST_UNIT_COUNT || '25';
 if (!email || !password) throw new Error('Set TRANSLATOR_EMAIL and TRANSLATOR_PASSWORD');
 
 const extPath = path.resolve('extension');
@@ -82,15 +85,31 @@ await page.screenshot({ path: `${outDir}/1-login.png` });
 await page.click('#login-form button[type=submit]');
 await page.waitForSelector('#view-setup:not([hidden])', { timeout: 30000 });
 
-// 2. Paste a whole column (header, duplicate, unknown id)
-await page.fill('#setup-ids', ['Question ID', ...ids, ids[0], '99999999'].join('\n'));
+// 2a. The Question IDs tab still parses a pasted column.
+await page.click('.tab[data-tab=ids]');
+await page.fill('#setup-ids', ['Question ID', ...ids, ids[0]].join('\n'));
 const parse = await page.textContent('#setup-parse');
-console.log('parse preview:', parse);
-assert.match(parse, new RegExp(`${ids.length + 1} question IDs found`));
-await page.screenshot({ path: `${outDir}/2-setup.png` });
+console.log('ID tab preview:', parse);
+assert.match(parse, new RegExp(`${ids.length} question IDs found`));
+
+// 2b. Assigned units: pick a teacher from the sheet and keep one unit.
+await page.click('.tab[data-tab=units]');
+await page.selectOption('#setup-teacher', TEACHER);
+await page.waitForSelector('.unit-item');
+const units = await page.$$eval('.unit-item', (els) => els.map((e) => e.textContent.replace(/\s+/g, ' ').trim()));
+console.log('units for', TEACHER, units);
+for (const item of await page.$$('.unit-item')) {
+  const text = (await item.textContent()).replace(/\s+/g, ' ');
+  if (!text.includes(UNIT_LABEL)) await (await item.$('input')).uncheck();
+}
+await page.screenshot({ path: `${outDir}/2-setup-units.png` });
 await page.click('#btn-load');
-await page.waitForFunction(() => !document.querySelector('#queue-summary').textContent.includes('Loading') && document.querySelectorAll('#queue-body tr').length > 0 && ![...document.querySelectorAll('#queue-body .pill')].some((p) => p.textContent === 'Loading…'), null, { timeout: 60000 });
-await page.screenshot({ path: `${outDir}/3-queue.png`, fullPage: true });
+await page.waitForSelector('#view-queue:not([hidden])', { timeout: 120000 });
+const unitsReport = await page.evaluate(async () => (await chrome.storage.local.get('queue')).queue.source.report);
+console.log('load report:', unitsReport);
+assert.ok(unitsReport.join(' ').includes(`${UNIT_LABEL}: ${UNIT_COUNT}`), 'unit count matches the sheet');
+await page.screenshot({ path: `${outDir}/3-queue.png`, fullPage: false });
+console.log('queue title:', await page.textContent('#queue-title'));
 console.log('queue summary:', await page.textContent('#queue-summary'));
 
 // 3. Translate the first question
@@ -118,7 +137,18 @@ for (const f of fields) console.log('  ', f[0], '=>', f[1]);
 assert.equal(form.get('pending_for_urdu_translation_review'), 'true');
 assert.equal(form.get('translation_statuses[urdu]'), 'pending_review');
 assert.match(form.get('question_text_urdu'), /استاد کی ترمیم/);
-assert.ok(fields.some(([k, v]) => k.endsWith('[images][]') && v.startsWith('FILE ')), 'step image re-uploaded');
+console.log('question sent:', firstId);
+const englishImages = await page.evaluate(async (id) => {
+  const auth = (await chrome.storage.local.get('auth')).auth;
+  const r = await fetch(`https://virtual.sundarstem.edu.pk/api/questions/${id}`, { headers: { Authorization: `Bearer ${auth.token}`, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+  const body = await r.json();
+  const q = body?.data?.question ?? body?.data ?? body;
+  if (!q?.id) throw new Error(`HTTP ${r.status}: ${JSON.stringify(body).slice(0, 300)}`);
+  return (q.solution_steps || []).map((st) => (st.images || []).length);
+}, firstId);
+const sentImages = englishImages.map((_, i) => fields.filter(([k]) => k === `solution_steps_urdu[${i}][images][]`).length);
+console.log('images per step - English:', englishImages, 'sent with Urdu:', sentImages);
+assert.deepEqual(sentImages, englishImages, 'every English step image re-uploaded to the matching Urdu step');
 
 // The AI request kept math out of the model's reach.
 assert.ok(aiCalls.length >= 1);

@@ -1,4 +1,5 @@
 import { parseQuestionIds } from './lib/ids.js';
+import { resolveUnit, belongsToUnit, unitLabel, matchTeacher } from './lib/units.js';
 import { compareMath, extractMath, plainText } from './lib/math.js';
 import { memoryKey, memoryValue, applyMemory } from './lib/memory.js';
 import {
@@ -203,6 +204,19 @@ $('#btn-logout').addEventListener('click', async () => {
 });
 
 // ---------------------------------------------------------------- setup view
+const setup = { tab: 'units', assignments: null, options: null, units: [] };
+
+for (const t of document.querySelectorAll('.tab')) {
+  t.addEventListener('click', () => selectTab(t.dataset.tab));
+}
+function selectTab(tab) {
+  setup.tab = tab;
+  for (const t of document.querySelectorAll('.tab')) t.setAttribute('aria-selected', String(t.dataset.tab === tab));
+  $('#tab-units').hidden = tab !== 'units';
+  $('#tab-ids').hidden = tab !== 'ids';
+  updateLoadButton();
+}
+
 function updateParsePreview() {
   const { ids, duplicates, ignored } = parseQuestionIds($('#setup-ids').value);
   const parts = [];
@@ -210,9 +224,76 @@ function updateParsePreview() {
   if (duplicates.length) parts.push(`${duplicates.length} duplicate${duplicates.length === 1 ? '' : 's'} removed`);
   if (ignored.length) parts.push(`ignored: ${ignored.slice(0, 3).map((t) => `"${t}"`).join(', ')}${ignored.length > 3 ? '…' : ''}`);
   $('#setup-parse').textContent = parts.join(' · ');
-  $('#btn-load').disabled = ids.length === 0;
+  updateLoadButton();
 }
 $('#setup-ids').addEventListener('input', updateParsePreview);
+
+function updateLoadButton() {
+  const ready = setup.tab === 'ids'
+    ? parseQuestionIds($('#setup-ids').value).ids.length > 0
+    : setup.units.some((u) => u.selected);
+  $('#btn-load').disabled = !ready;
+}
+
+async function loadAssignments() {
+  if (setup.assignments) return setup.assignments;
+  try {
+    const res = await fetch(chrome.runtime.getURL('assignments.json'));
+    setup.assignments = res.ok ? await res.json() : { teachers: [] };
+  } catch {
+    setup.assignments = { teachers: [] };
+  }
+  return setup.assignments;
+}
+
+function renderUnitList() {
+  const list = $('#unit-list');
+  list.replaceChildren();
+  if (!setup.units.length) {
+    list.append(el('p', { class: 'muted' }, 'Choose your name above, or add a unit below.'));
+  }
+  setup.units.forEach((u, i) => {
+    const cb = el('input', { type: 'checkbox', checked: u.selected });
+    cb.addEventListener('change', () => { u.selected = cb.checked; updateLoadButton(); });
+    list.append(el('label', { class: 'unit-item' },
+      cb,
+      el('span', { class: 'unit-name' }, unitLabel(u), el('div', { class: 'unit-sub' }, u.subject)),
+      u.count != null ? el('span', { class: 'pill' }, `${u.count} questions`) : null,
+      u.manual ? el('button', { type: 'button', class: 'small', onclick: (ev) => { ev.preventDefault(); setup.units.splice(i, 1); renderUnitList(); } }, 'Remove') : null,
+    ));
+  });
+  updateLoadButton();
+}
+
+$('#setup-teacher').addEventListener('change', async () => {
+  const name = $('#setup-teacher').value;
+  await store.set('teacherName', name);
+  const teacher = setup.assignments.teachers.find((t) => t.name === name);
+  setup.units = [
+    ...(teacher?.units ?? []).map((u) => ({ ...u, selected: true })),
+    ...setup.units.filter((u) => u.manual),
+  ];
+  renderUnitList();
+});
+
+async function loadFilterOptions() {
+  if (setup.options) return setup.options;
+  setup.options = await withSession(() => state.client.filterOptions());
+  const fill = (sel, values) => sel.replaceChildren(...values.map((v) => el('option', { value: v }, v.replace(/\s+/g, ' '))));
+  fill($('#add-grade'), setup.options.grades);
+  fill($('#add-subject'), setup.options.subjects);
+  $('#unit-options').replaceChildren(...setup.options.units.map((v) => el('option', { value: v.replace(/\s+/g, ' ') })));
+  return setup.options;
+}
+$('#add-unit').addEventListener('toggle', () => { if ($('#add-unit').open) loadFilterOptions().catch((e) => toast(e.message)); });
+$('#btn-add-unit').addEventListener('click', () => {
+  const unit = $('#add-unit-name').value.trim();
+  if (!unit) return;
+  if (!resolveUnit(setup.options?.units ?? [], unit)) { toast(`"${unit}" is not a unit on the portal.`); return; }
+  setup.units.push({ grade: $('#add-grade').value, subject: $('#add-subject').value, unit, count: null, selected: true, manual: true });
+  $('#add-unit-name').value = '';
+  renderUnitList();
+});
 
 async function openSetup() {
   $('#setup-language').value = state.settings.language;
@@ -221,24 +302,80 @@ async function openSetup() {
   if (saved?.ids?.length) {
     $('#btn-resume').textContent = `Resume previous list (${saved.ids.length} questions, ${LANGUAGES[saved.language].label})`;
   }
+
+  const { teachers } = await loadAssignments();
+  const sel = $('#setup-teacher');
+  sel.replaceChildren(el('option', { value: '' }, '— choose your name —'), ...teachers.map((t) => el('option', { value: t.name }, t.name)));
+  const remembered = await store.get('teacherName');
+  const auto = matchTeacher(teachers, state.auth?.user?.name);
+  const pick = teachers.find((t) => t.name === remembered) ?? auto;
+  sel.value = pick?.name ?? '';
+  setup.units = (pick?.units ?? []).map((u) => ({ ...u, selected: true }));
+  renderUnitList();
+  if (!teachers.length) selectTab('ids');
+
   updateParsePreview();
   show('setup');
 }
 
-$('#btn-load').addEventListener('click', async () => {
-  const { ids } = parseQuestionIds($('#setup-ids').value);
-  const language = $('#setup-language').value;
+async function startQueue(language, ids, source) {
   state.settings.language = language;
   await store.set('settings', state.settings);
   state.queue = {
     language,
     ids,
     index: 0,
+    source,
     items: Object.fromEntries(ids.map((id) => [id, { progress: 'todo' }])),
   };
   await saveQueue();
-  $('#setup-ids').value = '';
-  await openQueue(true);
+}
+
+$('#btn-load').addEventListener('click', async () => {
+  const language = $('#setup-language').value;
+  if (setup.tab === 'ids') {
+    const { ids } = parseQuestionIds($('#setup-ids').value);
+    await startQueue(language, ids, { type: 'ids' });
+    $('#setup-ids').value = '';
+    await openQueue(true);
+    return;
+  }
+
+  const btn = $('#btn-load');
+  btn.disabled = true;
+  const status = $('#units-status');
+  try {
+    const { units: unitOptions } = await loadFilterOptions();
+    const chosen = setup.units.filter((u) => u.selected);
+    const ids = [];
+    const found = new Map();
+    const report = [];
+    for (const u of chosen) {
+      const portalUnit = resolveUnit(unitOptions, u.unit);
+      if (!portalUnit) { report.push(`${unitLabel(u)}: not found on the portal`); continue; }
+      status.textContent = `Loading ${unitLabel(u)}…`;
+      const all = await withSession(() => state.client.questionsForUnit(portalUnit, language,
+        (page, last) => { status.textContent = `Loading ${unitLabel(u)}… page ${page} of ${last}`; }));
+      const mine = all.filter((q) => belongsToUnit(q, u));
+      for (const q of mine) {
+        if (found.has(q.id)) continue;
+        found.set(q.id, q);
+        ids.push(q.id);
+      }
+      report.push(`${unitLabel(u)}: ${mine.length}${u.count != null && u.count !== mine.length ? ` (sheet says ${u.count})` : ''}`);
+    }
+    status.textContent = report.join(' · ');
+    if (!ids.length) { toast('No questions left to translate in these units.'); return; }
+    await startQueue(language, ids, { type: 'units', units: chosen.map(({ grade, subject, unit }) => ({ grade, subject, unit })), report });
+    for (const [id, q] of found) await registerQuestion(id, q, { save: false });
+    await saveQueue();
+    await openQueue(false);
+  } catch (e) {
+    status.textContent = '';
+    toast(`Could not load questions: ${e.message}`, 6000);
+  } finally {
+    updateLoadButton();
+  }
 });
 
 $('#btn-resume').addEventListener('click', async () => {
@@ -254,7 +391,9 @@ const saveQueue = () => store.set('queue', state.queue);
 async function openQueue(fetchAll = false) {
   state.memory = await store.get(`tm:${state.queue.language}`, {});
   show('queue');
-  $('#queue-title').textContent = `${state.queue.ids.length} questions · ${lang().label}`;
+  const src = state.queue.source;
+  const what = src?.type === 'units' ? src.units.map(unitLabel).join(', ') : 'from question IDs';
+  $('#queue-title').textContent = `${state.queue.ids.length} questions · ${lang().label} · ${what}`;
   renderQueue();
   if (fetchAll) await loadAllQuestions();
 }
@@ -279,6 +418,12 @@ async function loadQuestion(id, force = false) {
   } catch (e) {
     q = { error: e.status === 404 ? 'Question not found' : e.message };
   }
+  await registerQuestion(id, q);
+  return q;
+}
+
+/** Store a question and update its row's progress from the portal status. */
+async function registerQuestion(id, q, { save = true } = {}) {
   state.questions.set(id, q);
   const item = state.queue.items[id];
   if (q.error) {
@@ -295,8 +440,7 @@ async function loadQuestion(id, force = false) {
     }
     if (item.progress === 'todo' && (await store.get(draftKey(id, state.queue.language)))) item.progress = 'draft';
   }
-  await saveQueue();
-  return q;
+  if (save) await saveQueue();
 }
 
 function portalStatusPill(q) {

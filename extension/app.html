@@ -42,10 +42,36 @@
           <option value="sindhi">Sindhi — سنڌي</option>
         </select>
       </label>
-      <label>Question IDs
-        <textarea id="setup-ids" rows="10" placeholder="Paste the whole Question ID column from your sheet here.&#10;&#10;7154&#10;7153&#10;7152"></textarea>
-      </label>
-      <p id="setup-parse" class="muted"></p>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" class="tab" data-tab="units" aria-selected="true">Assigned units</button>
+        <button type="button" role="tab" class="tab" data-tab="ids" aria-selected="false">Question IDs</button>
+      </div>
+
+      <div id="tab-units" class="tab-panel">
+        <label>Teacher
+          <select id="setup-teacher"><option value="">— choose your name —</option></select>
+        </label>
+        <div id="unit-list" class="unit-list"></div>
+        <details id="add-unit">
+          <summary>Add another unit</summary>
+          <div class="add-unit-row">
+            <label>Class<select id="add-grade"></select></label>
+            <label>Subject<select id="add-subject"></select></label>
+            <label>Unit<input id="add-unit-name" list="unit-options" placeholder="Start typing…"></label>
+            <datalist id="unit-options"></datalist>
+            <button id="btn-add-unit" type="button" class="ghost">Add</button>
+          </div>
+        </details>
+        <p id="units-status" class="muted"></p>
+      </div>
+
+      <div id="tab-ids" class="tab-panel" hidden>
+        <label>Question IDs
+          <textarea id="setup-ids" rows="10" placeholder="Paste the whole Question ID column from your sheet here.&#10;&#10;7154&#10;7153&#10;7152"></textarea>
+        </label>
+        <p id="setup-parse" class="muted"></p>
+      </div>
+
       <div class="row">
         <button id="btn-load" class="primary" type="button" disabled>Load questions</button>
         <button id="btn-resume" class="ghost" type="button" hidden>Resume previous list</button>

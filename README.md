@@ -3,7 +3,7 @@
 A Chrome extension that helps teachers translate their assigned SundarSTEM math questions into **Urdu** (and **Sindhi**) and send them for review.
 
 1. The teacher logs in with their own portal translator account.
-2. They paste the whole **Question ID** column from their assignment sheet.
+2. They choose their name. The extension lists the units (chapters) assigned to them in the coordinator's sheet and loads every question in those units that still needs translation.
 3. For each question the extension shows the English on the left and an editable Urdu draft on the right. The draft comes from AI, or from the teacher's own earlier translations.
 4. The teacher corrects it and presses **Ctrl+Enter**. The extension attaches the step images and sends the question for review on the portal, then opens the next question.
 
@@ -17,7 +17,12 @@ A Chrome extension that helps teachers translate their assigned SundarSTEM math 
 ## Using it
 
 - **Log in** with your portal email and password. The portal allows one login per account at a time, so logging in here signs you out of the portal in other tabs (and vice versa). If that happens mid-work, the extension asks for your password again and keeps your drafts.
-- **Paste IDs:** copy the whole column from Excel or Google Sheets, header included. Blank cells, duplicates and text such as "Question ID" are handled automatically.
+- **Assigned units** (the default tab):
+  - Choose your name. It is picked automatically if your portal account name matches the sheet, and remembered after that.
+  - Your units appear with their question counts, e.g. *Class 3 · Shapes — 25 questions*. Untick any you don't want to load now, then press **Load questions**.
+  - The extension loads every question in those units whose translation is pending or was rejected. It reports how many it found per unit and flags any count that differs from the sheet.
+  - **Add another unit** lets you load a unit that isn't in the sheet: pick the Class and Subject, then type the unit name.
+- **Question IDs** (second tab): paste a whole column of IDs from Excel or Google Sheets, header included. Blank cells, duplicates and text such as "Question ID" are handled automatically.
 - **The question list** shows each question's portal status:
   - IDs that don't exist are marked **Not available**.
   - Questions already sent or approved are marked **Already sent**.
@@ -39,6 +44,21 @@ After each send, the extension re-reads the question from the portal and marks i
 
 Every sentence a teacher sends is remembered on that computer. When the same English sentence comes up again, even with different numbers (`order $5$` vs `order $2$`), the saved translation is filled in instantly, with no AI call. You can clear it in **Settings**.
 
+## Updating teacher assignments (admin)
+
+Assignments ship inside the extension as `extension/assignments.json`. When the sheet changes:
+
+```bash
+npm run assignments -- "Urdu_Translation_Teacher_Assignments.xlsx"
+```
+
+Then share the updated `extension` folder; teachers click the reload icon on `chrome://extensions`.
+
+- **Sheet format:** a header row with **Teacher Name, Subject, Class, Unit Name, Unit Questions**, one row per teacher-unit pair, like the current sheet.
+- **Unit names:** they are matched loosely to the portal's spelling, so `Fractions ×, ÷` finds the portal's `Fractions ×  , ÷`, and `Fractions +, −` finds `Fractions +, _`.
+- **Class and subject:** a unit name such as *Shapes* or *Division* exists in more than one class. The extension keeps only the questions of the assigned Class and Subject.
+- **Checked against the portal:** all 24 units in the current sheet give exactly the sheet's counts (2,458 questions).
+
 ## AI suggestions (Claude)
 
 Suggestions come from the Claude API (`claude-opus-5-5` by default). This needs an Anthropic API key, entered in **Settings**.
@@ -59,6 +79,7 @@ It uses the same API calls as the portal's translator screen, so reviewers see e
 | Step | Call |
 | --- | --- |
 | Log in | `POST /api/login` |
+| Find a unit's questions | `GET /api/translator/questions?unit[]=<unit>&translation_status[]=pending_urdu_translation&translation_status[]=urdu_rejected&per_page=100&page=N`, then filtered by class and subject in the extension (the portal's own subject/class filters return nothing when combined with the unit filter) |
 | Load a question | `GET /api/questions/{id}` |
 | Send for review | `POST /api/translator/questions/{id}/submit` (multipart: `question_text_urdu`, `solution_steps_urdu[i][explanation]`, `solution_steps_urdu[i][images][]`, `pending_for_urdu_translation_review`, `translation_statuses[urdu]=pending_review`) |
 | Step images | downloaded from `https://virtual.sundarstem.edu.pk/storage/<path>` |

@@ -1,0 +1,191 @@
+{
+  "title": "Urdu Translation — Teacher Assignments",
+  "language": "urdu",
+  "generatedFrom": "a9f524cc-Urdu_Translation_Teacher_Assignments.xlsx",
+  "teachers": [
+    {
+      "name": "Abdul Rasheed",
+      "units": [
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Shapes",
+          "count": 63
+        },
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Exponents",
+          "count": 140
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "The Distributive Property",
+          "count": 105
+        }
+      ]
+    },
+    {
+      "name": "Ahmed Jamil",
+      "units": [
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Multiplication",
+          "count": 110
+        },
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Fractions ×, ÷",
+          "count": 120
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Area",
+          "count": 78
+        }
+      ]
+    },
+    {
+      "name": "Faisal Hayat",
+      "units": [
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Counting",
+          "count": 98
+        },
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Factors",
+          "count": 99
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Perfect Squares",
+          "count": 109
+        }
+      ]
+    },
+    {
+      "name": "Muhammad Sajjad",
+      "units": [
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Division",
+          "count": 108
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Division",
+          "count": 137
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Estimation",
+          "count": 63
+        }
+      ]
+    },
+    {
+      "name": "Sajid Hussain",
+      "units": [
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Logic",
+          "count": 68
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Variables",
+          "count": 116
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Fractions",
+          "count": 124
+        }
+      ]
+    },
+    {
+      "name": "Hafiz Hamid",
+      "units": [
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Fractions +, −",
+          "count": 167
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Perimeter and Area",
+          "count": 86
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Measurement",
+          "count": 54
+        }
+      ]
+    },
+    {
+      "name": "Aaqib Riaz",
+      "units": [
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Integers",
+          "count": 127
+        },
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Probability",
+          "count": 105
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Skip Counting",
+          "count": 73
+        }
+      ]
+    },
+    {
+      "name": "Imdad Hussain",
+      "units": [
+        {
+          "subject": "Basic Mathematics Practice 4",
+          "grade": "4",
+          "unit": "Decimals",
+          "count": 146
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Shapes",
+          "count": 25
+        },
+        {
+          "subject": "Basic Mathematics Practice 3",
+          "grade": "3",
+          "unit": "Multiplication",
+          "count": 137
+        }
+      ]
+    }
+  ]
+}
