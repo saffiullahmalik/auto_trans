@@ -1,8 +1,12 @@
 {
-  "_comment": "Defaults for every teacher who installs this copy. An admin can fill in apiKey before sharing the extension; teachers can still change these in Settings.",
+  "_comment": "Defaults for every teacher who installs this copy. provider: claude | gemini | google. An admin can fill in the key for the chosen provider before sharing the extension; teachers can still change these in Settings.",
   "language": "urdu",
   "aiEnabled": true,
+  "provider": "claude",
   "apiKey": "",
   "model": "claude-opus-5-5",
+  "geminiKey": "",
+  "geminiModel": "gemini-2.5-flash",
+  "googleKey": "",
   "glossary": ""
 }

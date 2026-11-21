@@ -6,7 +6,7 @@ import {
   LANGUAGES, PortalClient, SessionExpiredError, login, translationStatus, isTranslatable,
   rejectionComment, imageUrl, fetchImageFile, buildSubmitForm,
 } from './lib/portal.js';
-import { suggestTranslation, DEFAULT_MODEL } from './lib/ai.bundle.js';
+import { suggest, PROVIDERS, CLAUDE_DEFAULT_MODEL, GEMINI_DEFAULT_MODEL } from './lib/translate.js';
 
 // ---------------------------------------------------------------- storage
 const store = {
@@ -34,7 +34,7 @@ const el = (tag, attrs = {}, ...children) => {
 // ---------------------------------------------------------------- state
 const state = {
   auth: null,          // { token, user, identifier }
-  settings: null,      // { language, aiEnabled, apiKey, model, glossary }
+  settings: null,      // { language, aiEnabled, provider, apiKey, model, geminiKey, geminiModel, googleKey, glossary }
   client: null,
   queue: null,         // { language, ids, items: { [id]: { progress, message } }, index }
   questions: new Map(),  // id -> question | { error }
@@ -542,13 +542,7 @@ function suggestion(id, { useMemory = true } = {}) {
     const needAi = result.questionHtml == null || result.stepsHtml.some((s, i) => s == null && plainText(input.steps[i]));
     if (needAi && state.settings.aiEnabled) {
       try {
-        const ai = await suggestTranslation({
-          apiKey: state.settings.apiKey,
-          model: state.settings.model || DEFAULT_MODEL,
-          language: state.queue.language,
-          glossary: state.settings.glossary,
-          question: input,
-        });
+        const ai = await suggest(state.settings, state.queue.language, input);
         result.questionHtml ??= ai.questionHtml;
         result.stepsHtml = result.stepsHtml.map((s, i) => s ?? ai.stepsHtml[i]);
         result.source = 'ai';
@@ -657,7 +651,7 @@ async function openEditor(index) {
     const thisId = id;
     suggestion(id).then((r) => {
       if (editor.id !== thisId) return;
-      fillEditors(r.questionHtml, r.stepsHtml, r.source === 'ai' ? 'AI suggestion — please check' : 'From your translation memory');
+      fillEditors(r.questionHtml, r.stepsHtml, r.source === 'ai' ? `${providerLabel()} suggestion — please check` : 'From your translation memory');
       if (r.error) showNotice(`AI suggestion unavailable: ${r.error}`, 'warn');
       editor.dirty = false;
     });
@@ -924,7 +918,7 @@ $('#btn-regen').addEventListener('click', async () => {
   editor.fields.forEach((f) => f.setLoading('Preparing AI suggestion…'));
   const r = await job;
   if (editor.id !== id) return;
-  fillEditors(r.questionHtml, r.stepsHtml, 'AI suggestion — please check');
+  fillEditors(r.questionHtml, r.stepsHtml, `${providerLabel()} suggestion — please check`);
   if (r.error) showNotice(`AI suggestion unavailable: ${r.error}`, 'warn');
 });
 
@@ -935,12 +929,25 @@ document.addEventListener('keydown', (ev) => {
 window.addEventListener('beforeunload', () => { saveDraft(); });
 
 // ---------------------------------------------------------------- settings
+const providerLabel = () => PROVIDERS[state.settings.provider || 'claude']?.label ?? 'AI';
+
+function showProviderFields() {
+  const provider = $('#settings-form').provider.value;
+  for (const box of document.querySelectorAll('[data-provider]')) box.hidden = box.dataset.provider !== provider;
+}
+$('#settings-form').provider.addEventListener('change', showProviderFields);
+
 $('#btn-settings').addEventListener('click', () => {
   const f = $('#settings-form');
   f.aiEnabled.checked = !!state.settings.aiEnabled;
+  f.provider.value = state.settings.provider ?? 'claude';
   f.apiKey.value = state.settings.apiKey ?? '';
-  f.model.value = state.settings.model ?? DEFAULT_MODEL;
+  f.model.value = state.settings.model || CLAUDE_DEFAULT_MODEL;
+  f.geminiKey.value = state.settings.geminiKey ?? '';
+  f.geminiModel.value = state.settings.geminiModel || GEMINI_DEFAULT_MODEL;
+  f.googleKey.value = state.settings.googleKey ?? '';
   f.glossary.value = state.settings.glossary ?? '';
+  showProviderFields();
   $('#tm-count').textContent = `Translation memory (${lang().label}): ${Object.keys(state.memory).length} saved sentences.`;
   $('#dlg-settings').showModal();
 });
@@ -949,8 +956,12 @@ $('#dlg-settings').addEventListener('close', async () => {
   const f = $('#settings-form');
   Object.assign(state.settings, {
     aiEnabled: f.aiEnabled.checked,
+    provider: f.provider.value,
     apiKey: f.apiKey.value.trim(),
-    model: f.model.value.trim() || DEFAULT_MODEL,
+    model: f.model.value.trim() || CLAUDE_DEFAULT_MODEL,
+    geminiKey: f.geminiKey.value.trim(),
+    geminiModel: f.geminiModel.value.trim() || GEMINI_DEFAULT_MODEL,
+    googleKey: f.googleKey.value.trim(),
     glossary: f.glossary.value,
   });
   await store.set('settings', state.settings);
@@ -977,7 +988,11 @@ async function loadDefaults() {
 (async function boot() {
   const defaults = await loadDefaults();
   delete defaults._comment;
-  state.settings = { language: 'urdu', aiEnabled: true, apiKey: '', model: DEFAULT_MODEL, glossary: '', ...defaults, ...(await store.get('settings', {})) };
+  state.settings = {
+    language: 'urdu', aiEnabled: true, provider: 'claude',
+    apiKey: '', model: CLAUDE_DEFAULT_MODEL, geminiKey: '', geminiModel: GEMINI_DEFAULT_MODEL, googleKey: '', glossary: '',
+    ...defaults, ...(await store.get('settings', {})),
+  };
   state.memory = await store.get(`tm:${state.settings.language}`, {});
   const auth = await store.get('auth');
   if (!auth) { show('login'); return; }

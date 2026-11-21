@@ -16,6 +16,7 @@ const ids = (process.env.TEST_IDS || '7154,7146').split(',');
 const TEACHER = process.env.TEST_TEACHER || 'Imdad Hussain';
 const UNIT_LABEL = process.env.TEST_UNIT || 'Class 3 · Shapes';
 const UNIT_COUNT = process.env.TEST_UNIT_COUNT || '25';
+const PROVIDER = process.env.E2E_PROVIDER || 'claude';
 if (!email || !password) throw new Error('Set TRANSLATOR_EMAIL and TRANSLATOR_PASSWORD');
 
 const extPath = path.resolve('extension');
@@ -53,6 +54,20 @@ await ctx.route('**/*', async (route) => {
       }),
     });
   }
+  if (url.startsWith('https://generativelanguage.googleapis.com/')) {
+    const body = JSON.parse(req.postData());
+    aiCalls.push({ provider: 'gemini', url, text: body.contents[0].parts[0].text, body });
+    const input = JSON.parse(body.contents[0].parts[0].text);
+    const fake = (h) => h.replace(/>([^<]+)</g, (_, t) => `>ترجمہ ${(t.match(/⟦M\d+⟧/g) || []).join(' ')}<`);
+    const out = { question_html: fake(input.question_html), steps_html: input.steps_html.map(fake) };
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(out) }] } }] }) });
+  }
+  if (url.startsWith('https://translation.googleapis.com/')) {
+    const body = JSON.parse(req.postData());
+    aiCalls.push({ provider: 'google', url, text: body.q.join(' '), body });
+    const fake = (t) => t.split(/(<span translate="no">⟦M\d+⟧<\/span>|<[^>]+>)/).map((p, i) => (i % 2 ? p : p.replace(/[A-Za-z]+/g, 'ترجمہ'))).join('');
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { translations: body.q.map((t) => ({ translatedText: fake(t) })) } }) });
+  }
   if (url.includes('/api/translator/questions/') && url.endsWith('/submit')) {
     submits.push({ url, contentType: req.headers()['content-type'], body: req.postDataBuffer() });
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"status":true,"message":"Translations submitted successfully."}' });
@@ -75,7 +90,10 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 await page.goto(`chrome-extension://${extId}/app.html`);
 
 // Turn on AI with a dummy key (the API is faked above).
-await page.evaluate(() => chrome.storage.local.set({ settings: { language: 'urdu', aiEnabled: true, apiKey: 'sk-ant-test', model: 'claude-opus-5-5', glossary: '' } }));
+await page.evaluate((provider) => chrome.storage.local.set({ settings: {
+  language: 'urdu', aiEnabled: true, provider, glossary: '',
+  apiKey: 'sk-ant-test', model: 'claude-opus-5-5', geminiKey: 'AIza-test', geminiModel: 'gemini-2.5-flash', googleKey: 'AIza-test',
+} }), PROVIDER);
 await page.reload();
 
 // 1. Login
@@ -151,9 +169,14 @@ console.log('images per step - English:', englishImages, 'sent with Urdu:', sent
 assert.deepEqual(sentImages, englishImages, 'every English step image re-uploaded to the matching Urdu step');
 
 // The AI request kept math out of the model's reach.
-assert.ok(aiCalls.length >= 1);
-assert.ok(!aiCalls[0].messages[0].content.includes('$'), 'no raw LaTeX sent to AI');
-console.log('AI request: model', aiCalls[0].model, '| fallbacks', aiCalls[0].fallbacks, '| effort', aiCalls[0].output_config?.effort);
+assert.ok(aiCalls.length >= 1, 'translation provider was called');
+const firstCall = aiCalls[0];
+const sentText = firstCall.text ?? firstCall.messages[0].content;
+assert.ok(!sentText.includes('$'), 'no raw LaTeX sent to the translation provider');
+if (PROVIDER === 'claude') console.log('AI request: model', firstCall.model, '| fallbacks', firstCall.fallbacks, '| effort', firstCall.output_config?.effort);
+else console.log(`${PROVIDER} request:`, firstCall.url);
+const label = await page.textContent('.field-src');
+console.log('suggestion label:', label);
 
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `${outDir}/5-after-submit.png`, fullPage: false });

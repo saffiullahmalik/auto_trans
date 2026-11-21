@@ -59,18 +59,36 @@ Then share the updated `extension` folder; teachers click the reload icon on `ch
 - **Class and subject:** a unit name such as *Shapes* or *Division* exists in more than one class. The extension keeps only the questions of the assigned Class and Subject.
 - **Checked against the portal:** all 24 units in the current sheet give exactly the sheet's counts (2,458 questions).
 
-## AI suggestions (Claude)
+## Translation providers
 
-Suggestions come from the Claude API (`claude-opus-5-5` by default). This needs an Anthropic API key, entered in **Settings**.
+Choose the provider in **Settings → Translation provider** and paste that provider's key:
 
-- Formulas are replaced with placeholders before the text is sent to the AI and put back afterwards, so the AI cannot change any math.
-- Requests use server-side refusal fallback (`fallbacks: "default"`). If the main model declines a request, the API retries it on a fallback model.
-- **Glossary** (Settings): add `English = Urdu` lines so terms are translated the same way every time.
-- **Cost:** roughly 2–5 US cents per question with the default model (about $50–130 for all 2,585 pending Urdu questions). You can switch the model in Settings, e.g. `claude-haiku-5-5` is far cheaper.
+| Provider | Get a key | Quality for school math | Notes |
+| --- | --- | --- | --- |
+| **Claude** (default) | [console.anthropic.com](https://console.anthropic.com) → API keys | Best: natural, grade-appropriate wording; follows the glossary | `claude-opus-5-5` by default; refusal fallback enabled |
+| **Gemini** | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Good; follows the glossary | Model `gemini-2.5-flash` by default, changeable in Settings |
+| **Google Translate** | Google Cloud Console → enable **Cloud Translation API** → Credentials → **Create API key** | Literal machine translation; may sound unnatural; glossary not used | Cheapest; supports Urdu (`ur`) and Sindhi (`sd`) |
+
+All three get the same protection:
+- Formulas are replaced with placeholders (`⟦M1⟧`) before the text leaves the browser and put back afterwards. Google Translate also sees them wrapped in `translate="no"`.
+- If a provider loses or changes a formula, the suggestion is rejected and the teacher sees a message instead of a broken draft.
+- Sentences the teacher has already sent are reused from translation memory without calling any provider.
+
+The **Glossary** (Settings) holds `English = Urdu` lines so terms are translated the same way every time. Claude and Gemini use it; Google Translate doesn't.
+
+**Cost with Claude:** roughly 2–5 US cents per question with the default model, about $50–130 for all 2,585 pending Urdu questions. You can switch the model in Settings; e.g. `claude-haiku-5-5` is far cheaper. Gemini and Google Translate are priced by Google, per token and per character respectively.
+
+### Restricting Google keys
+
+In Google Cloud Console → Credentials → your key, set:
+- **API restrictions:** only **Generative Language API** (Gemini) or **Cloud Translation API**.
+- **Quota or budget alerts**, so a leaked key can't run up a bill.
 
 ### Sharing one key with all teachers
 
-An admin can put a key in `extension/config.json` (`"apiKey": "sk-ant-..."`) before sharing the folder, so teachers don't need their own. **Anyone who has the extension folder can read that key.** Use a separate key with a monthly spend limit set in the Anthropic Console, and rotate it if it leaks. A small server that holds the key would be safer for wide distribution; that would be a future addition.
+An admin can put a key in `extension/config.json` before sharing the folder, so teachers don't need their own. Set `provider` (`claude`, `gemini` or `google`) and the matching field: `apiKey`, `geminiKey` or `googleKey`.
+
+**Anyone who has the extension folder can read that key.** Use a separate key with a spend limit, and rotate it if it leaks. A small server that holds the key would be safer for wide distribution; that would be a future addition.
 
 ## How it talks to the portal
 

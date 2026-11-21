@@ -122,8 +122,25 @@
     <form method="dialog" id="settings-form">
       <h2>Settings</h2>
       <label class="check"><input type="checkbox" name="aiEnabled"> Suggest translations with AI</label>
-      <label>Claude API key<input name="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off"></label>
-      <label>Model<input name="model" placeholder="claude-opus-5-5"></label>
+      <label>Translation provider
+        <select name="provider">
+          <option value="claude">Claude (Anthropic)</option>
+          <option value="gemini">Gemini (Google AI)</option>
+          <option value="google">Google Translate</option>
+        </select>
+      </label>
+      <div data-provider="claude">
+        <label>Claude API key<input name="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off"></label>
+        <label>Model<input name="model" placeholder="claude-opus-5-5"></label>
+      </div>
+      <div data-provider="gemini" hidden>
+        <label>Gemini API key <span class="muted">(Google AI Studio)</span><input name="geminiKey" type="password" placeholder="AIza..." autocomplete="off"></label>
+        <label>Model<input name="geminiModel" placeholder="gemini-2.5-flash"></label>
+      </div>
+      <div data-provider="google" hidden>
+        <label>Google Cloud Translation API key<input name="googleKey" type="password" placeholder="AIza..." autocomplete="off"></label>
+        <p class="muted">Plain machine translation: faster and cheaper, but less natural for school math, and the glossary is not used.</p>
+      </div>
       <label>Glossary <span class="muted">(one per line: English = translation)</span>
         <textarea name="glossary" rows="6" placeholder="line of symmetry = تشاکل کی لکیر"></textarea>
       </label>
