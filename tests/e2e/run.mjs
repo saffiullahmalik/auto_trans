@@ -138,6 +138,30 @@ await page.waitForTimeout(1500); // let images load for the screenshot
 await page.screenshot({ path: `${outDir}/4-editor.png`, fullPage: true });
 const firstId = (await page.textContent('#ed-id')).replace('ID ', '');
 
+// "Copy for AI" → clipboard holds the prompt with the question and every step.
+await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+await page.click('#btn-copy-ai');
+await page.waitForTimeout(500);
+const prompt = await page.evaluate(() => navigator.clipboard.readText());
+const stepCount = await page.$$eval('.editable', (e) => e.length - 1);
+console.log(`copied prompt: ${prompt.length} chars, steps in prompt: ${(prompt.split('— English to translate —')[1].match(/### STEP \d+/g) || []).length} (question has ${stepCount})`);
+assert.match(prompt, /### QUESTION/);
+assert.equal((prompt.split('— English to translate —')[1].match(/### STEP \d+/g) || []).length, stepCount);
+
+// "Paste AI answer" with a reply in the requested format fills every box.
+const reply = ['### QUESTION', 'چیٹ سے ترجمہ شدہ سوال', ...Array.from({ length: stepCount }, (_, i) => ['', `### STEP ${i + 1}`, `چیٹ سے قدم ${i + 1}`]).flat()].join('\n');
+await page.click('#btn-paste-ai');
+await page.fill('#paste-text', reply);
+await page.dispatchEvent('#paste-text', 'input');
+console.log('paste dialog:', await page.textContent('#paste-info'));
+await page.screenshot({ path: `${outDir}/4b-paste.png` });
+await page.click('#paste-fill');
+await page.waitForFunction(() => document.querySelector('.editable')?.textContent.includes('چیٹ'), null, { timeout: 5000 }).catch(() => {});
+const boxes = await page.$$eval('.editable', (e) => e.map((x) => x.textContent.trim()));
+console.log('boxes after paste:', boxes);
+assert.match(boxes[0], /چیٹ سے ترجمہ شدہ سوال/);
+boxes.slice(1).forEach((b, i) => assert.match(b, new RegExp(`چیٹ سے قدم ${i + 1}`)));
+
 // Teacher edits the question text.
 const first = page.locator('.editable').first();
 await first.click();

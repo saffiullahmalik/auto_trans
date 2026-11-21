@@ -109,6 +109,8 @@
           <button id="btn-back" class="ghost" type="button">← List</button>
           <button id="btn-prev" class="ghost" type="button">Previous</button>
           <button id="btn-skip" class="ghost" type="button">Skip</button>
+          <button id="btn-copy-ai" class="ghost" type="button" title="Copy the English question and steps with a translation prompt, to paste into ChatGPT, Gemini or any AI chat">Copy for AI</button>
+          <button id="btn-paste-ai" class="ghost" type="button" title="Paste the AI chat's reply to fill the question and every step">Paste AI answer</button>
           <button id="btn-regen" class="ghost" type="button">Regenerate AI</button>
           <button id="btn-submit" class="primary" type="button">Send for review <kbd>Ctrl</kbd>+<kbd>Enter</kbd></button>
         </div>
@@ -247,6 +249,20 @@
           <button value="cancel" class="ghost">Cancel</button>
           <button value="save" class="primary">Save</button>
         </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Paste an AI chat reply -->
+  <dialog id="dlg-paste">
+    <form id="paste-form" method="dialog">
+      <h2>Paste the AI answer</h2>
+      <p class="muted">Paste the whole reply from ChatGPT, Gemini or another AI chat. The parts under “### QUESTION”, “### STEP 1”, … go into the matching boxes.</p>
+      <textarea id="paste-text" rows="14" dir="auto" placeholder="### QUESTION&#10;…&#10;&#10;### STEP 1&#10;…"></textarea>
+      <p id="paste-info" class="muted"></p>
+      <div class="row">
+        <button value="fill" class="primary" id="paste-fill">Fill the boxes</button>
+        <button value="cancel" class="ghost">Cancel</button>
       </div>
     </form>
   </dialog>

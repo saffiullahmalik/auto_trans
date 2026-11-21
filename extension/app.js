@@ -10,6 +10,7 @@ import {
   rejectionComment, imageUrl, fetchImageFile, buildSubmitForm,
 } from './lib/portal.js';
 import { suggest, PROVIDERS, CLAUDE_DEFAULT_MODEL, GEMINI_DEFAULT_MODEL } from './lib/translate.js';
+import { buildCopyPrompt, parseAiAnswer } from './lib/ai-prompt.js';
 
 // ---------------------------------------------------------------- storage
 const store = {
@@ -937,6 +938,50 @@ $('#btn-back').addEventListener('click', async () => {
   editor.id = null;
   openQueue();
 });
+// "Copy for AI" / "Paste AI answer": for teachers using any AI chat in another tab.
+$('#btn-copy-ai').addEventListener('click', async () => {
+  const q = state.questions.get(editor.id);
+  if (!q) return;
+  const text = buildCopyPrompt(aiInput(q), state.queue.language, state.settings.glossary);
+  try {
+    await navigator.clipboard.writeText(text);
+    const n = englishSteps(q).length;
+    toast(`Copied the question${n ? ` and ${n} step${n > 1 ? 's' : ''}` : ''} with a ${lang().label} prompt. Paste it into your AI chat.`, 4000);
+  } catch {
+    showNotice('Could not copy automatically. Allow clipboard access for this page and try again.', 'err');
+  }
+});
+
+$('#btn-paste-ai').addEventListener('click', async () => {
+  $('#paste-text').value = '';
+  $('#paste-info').textContent = '';
+  try {
+    const clip = await navigator.clipboard.readText();
+    // Pre-fill only with an AI answer, not with the prompt that "Copy for AI" just put there.
+    if (/###\s*(QUESTION|STEP)/i.test(clip) && !/English to translate/.test(clip)) $('#paste-text').value = clip;
+  } catch { /* clipboard read not allowed: the teacher pastes with Ctrl+V */ }
+  $('#dlg-paste').showModal();
+  $('#paste-text').focus();
+});
+
+$('#paste-text').addEventListener('input', () => {
+  const r = parseAiAnswer($('#paste-text').value, editor.fields.length - 1);
+  const found = (r.questionHtml ? 1 : 0) + r.stepsHtml.filter((x) => x != null).length;
+  $('#paste-info').textContent = `Found: ${r.questionHtml ? 'question' : 'no question'}, ${r.stepsHtml.filter((x) => x != null).length} of ${r.stepsHtml.length} steps.` + (r.warnings.length ? ` ${r.warnings.join(' ')}` : '');
+  $('#paste-fill').disabled = found === 0;
+});
+
+$('#dlg-paste').addEventListener('close', () => {
+  if ($('#dlg-paste').returnValue !== 'fill') return;
+  const r = parseAiAnswer($('#paste-text').value, editor.fields.length - 1);
+  const [qf, ...steps] = editor.fields;
+  if (r.questionHtml) qf.setValue(r.questionHtml, 'Pasted from AI chat — please check');
+  r.stepsHtml.forEach((h, i) => { if (h != null && steps[i]) steps[i].setValue(h, 'Pasted from AI chat — please check'); });
+  markDirty();
+  if (r.warnings.length) showNotice(r.warnings.join(' '), 'warn');
+  else toast('Filled the question and all steps from the AI answer.');
+});
+
 $('#btn-regen').addEventListener('click', async () => {
   if (!state.settings.aiEnabled) { toast('AI suggestions are turned off in Settings.'); return; }
   if (editor.dirty && !confirm('Replace your edits with a new AI suggestion?')) return;

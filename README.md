@@ -32,6 +32,10 @@ A Chrome extension that helps teachers translate their assigned SundarSTEM math 
   - Formulas are written as `$...$`, exactly as on the portal. If a formula in your translation differs from the English, the box shows a warning, and you're asked to confirm before sending.
   - **Images** in an English solution step are downloaded and attached to the matching Urdu step. Untick an image to leave it out.
   - Drafts autosave. You can close the tab and come back with **Resume previous list**.
+- **Using any AI chat instead (ChatGPT, Gemini, Claude…):**
+  - **Copy for AI** copies a ready prompt with the English question and every solution step, each under its own heading (`### QUESTION`, `### STEP 1`, …). The prompt tells the AI to keep formulas like `$5$` unchanged and to reply in the same format.
+  - Paste it into the chat, copy the whole reply, then click **Paste AI answer** and **Fill the boxes**. The question box and each step box are filled from the matching part of the reply.
+  - If a step is missing from the reply, or the reply has no headings, you'll see a warning and can fill that box by hand.
 - **Keys and buttons:**
   - **Ctrl+Enter** sends the question for review and moves to the next one.
   - **Skip** leaves a question for later.

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SundarSTEM Translation Assistant",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Translate assigned SundarSTEM questions into Urdu or Sindhi with AI suggestions, then send them for review.",
   "action": {
     "default_title": "Open Translation Assistant",
