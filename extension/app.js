@@ -11,6 +11,7 @@ import {
 } from './lib/portal.js';
 import { suggest, PROVIDERS, CLAUDE_DEFAULT_MODEL, GEMINI_DEFAULT_MODEL } from './lib/translate.js';
 import { buildCopyPrompt, parseAiAnswer } from './lib/ai-prompt.js';
+import { copyImageToClipboard, readImageFromClipboard, isImageFile, replacementName, fileToDataUrl, dataUrlToFile, downloadBlob } from './lib/image-tools.js';
 
 // ---------------------------------------------------------------- storage
 const store = {
@@ -672,10 +673,19 @@ async function openEditor(index) {
   const draft = await store.get(draftKey(id, state.queue.language));
   if (draft) {
     fillEditors(draft.questionHtml, draft.stepsHtml, 'Your saved draft');
-    draft.imageChoices?.forEach((choices, i) => editor.fields[i + 1]?.setImageChoices(choices));
+    const saved = draft.imageState ?? draft.imageChoices;
+    for (let i = 0; i < (saved?.length ?? 0); i++) await editor.fields[i + 1]?.setImageState(saved[i]);
   } else if (st === 'rejected' && q[L.textField]) {
     const existingSteps = Array.isArray(q[L.stepsField]) ? q[L.stepsField].map((s) => s?.explanation ?? '') : [];
     fillEditors(q[L.textField], englishSteps(q).map((_, i) => existingSteps[i] ?? ''), 'Previous translation (rejected)');
+    // Keep translated images the teacher uploaded last time.
+    const prevImages = Array.isArray(q[L.stepsField]) ? q[L.stepsField].map((s) => s?.images ?? []) : [];
+    englishSteps(q).forEach((s, i) => (s.images ?? []).forEach(async (enPath, j) => {
+      const urPath = prevImages[i]?.[j];
+      if (urPath && urPath !== enPath) {
+        try { editor.fields[i + 1]?.setReplacement(j, await imageFile(urPath), 'Your translated image from last time'); } catch { /* keep original */ }
+      }
+    }));
   } else {
     editor.fields.forEach((f) => f.setLoading(state.settings.aiEnabled ? 'Preparing AI suggestion…' : ''));
     const thisId = id;
@@ -704,24 +714,9 @@ function fillEditors(questionHtml, stepsHtml, sourceLabel) {
   stepsHtml.forEach((h, i) => editor.fields[i + 1]?.setValue(h, sourceLabel));
 }
 
-function imagesBlock(paths, choices) {
+function imagesBlock(paths) {
   if (!paths.length) return null;
-  const wrap = el('div', { class: 'images' });
-  paths.forEach((p, i) => {
-    const fig = el('figure', {}, el('img', { src: imageUrl(p), alt: '', loading: 'lazy' }));
-    if (choices) {
-      const cb = el('input', { type: 'checkbox', checked: true });
-      cb.addEventListener('change', () => {
-        choices[i] = cb.checked;
-        fig.classList.toggle('off', !cb.checked);
-        markDirty();
-      });
-      choices.inputs.push(cb);
-      fig.append(el('label', {}, cb, 'Copy into translation'));
-    }
-    wrap.append(fig);
-  });
-  return wrap;
+  return el('div', { class: 'images' }, ...paths.map((p) => el('figure', {}, el('img', { src: imageUrl(p), alt: '', loading: 'lazy' }))));
 }
 
 function optionsBlock(q) {
@@ -739,8 +734,9 @@ function optionsBlock(q) {
 
 function buildPair({ title, englishHtml, englishExtra, copyImages }) {
   const L = lang();
-  const choices = copyImages.map(() => true);
-  choices.inputs = [];
+  // One entry per English step image: attach it or not, and an optional translated replacement.
+  const images = copyImages.map((path) => ({ path, include: true, replacement: null, note: '' }));
+  const imagesBox = el('div', { class: 'images' });
 
   const editable = el('div', {
     class: `editable ${L.fontClass}`, contenteditable: 'true', dir: 'rtl', lang: L.key === 'urdu' ? 'ur' : 'sd', spellcheck: 'false',
@@ -785,7 +781,7 @@ function buildPair({ title, englishHtml, englishExtra, copyImages }) {
     el('div', { class: 'pane-title' }, `${title} — English`),
     htmlBlock(englishHtml),
     ...englishExtra,
-    copyImages.length ? imagesBlock(copyImages, null) : null,
+    copyImages.length ? imagesBlock(copyImages) : null,
   );
   const transPane = el('div', { class: 'pane' },
     el('div', { class: 'pane-title' }, el('span', {}, `${title} — ${L.label}`), toolbar),
@@ -794,14 +790,17 @@ function buildPair({ title, englishHtml, englishExtra, copyImages }) {
     warn,
     el('div', { class: 'preview-label' }, 'Preview'),
     preview,
-    copyImages.length ? el('div', { class: 'field-src' }, 'Images that will be attached to this step:') : null,
-    imagesBlock(copyImages, choices),
+    copyImages.length ? el('div', { class: 'field-src' }, 'Images that will be attached to this step — replace any that contain English text with a translated version:') : null,
+    copyImages.length ? imagesBox : null,
   );
+
+  const renderImages = () => imagesBox.replaceChildren(...images.map((img, i) => urduImageFigure(img, i, () => { renderImages(); markDirty(); })));
+  renderImages();
 
   const field = {
     englishHtml,
     copyImages,
-    choices,
+    images,
     getValue: () => sanitizeHtml(editable.innerHTML).trim(),
     setValue(html, label) {
       editable.innerHTML = sanitizeHtml(html);
@@ -809,19 +808,95 @@ function buildPair({ title, englishHtml, englishExtra, copyImages }) {
       updatePreview();
     },
     setLoading(text) { editable.innerHTML = ''; source.textContent = text; source.classList.toggle('loading', !!text); },
-    setImageChoices(saved) {
-      saved?.forEach((v, i) => {
-        if (choices.inputs[i]) {
-          choices[i] = v;
-          choices.inputs[i].checked = v;
-          choices.inputs[i].closest('figure').classList.toggle('off', !v);
-        }
-      });
+    /** For drafts: which images are attached, and replacements as data URLs. */
+    async getImageState() {
+      return Promise.all(images.map(async (img) => ({
+        include: img.include,
+        replacement: img.replacement ? { name: img.replacement.name, dataUrl: await fileToDataUrl(img.replacement) } : null,
+        note: img.note,
+      })));
+    },
+    async setImageState(saved) {
+      for (let i = 0; i < images.length && i < (saved?.length ?? 0); i++) {
+        const v = saved[i];
+        if (typeof v === 'boolean') { images[i].include = v; continue; } // drafts from older versions
+        images[i].include = v?.include !== false;
+        images[i].note = v?.note ?? '';
+        images[i].replacement = v?.replacement?.dataUrl ? await dataUrlToFile(v.replacement.dataUrl, v.replacement.name) : null;
+      }
+      renderImages();
+    },
+    setReplacement(i, file, note) {
+      if (!images[i]) return;
+      images[i].replacement = file;
+      images[i].note = note;
+      renderImages();
     },
     focus: () => editable.focus(),
   };
   editor.fields.push(field);
   return el('div', { class: 'pair' }, englishPane, transPane);
+}
+
+/** One step image on the translation side, with copy / download / replace controls. */
+function urduImageFigure(img, i, changed) {
+  const shown = img.replacement ? URL.createObjectURL(img.replacement) : imageUrl(img.path);
+  const pic = el('img', { src: shown, alt: '', loading: 'lazy' });
+  if (img.replacement) pic.addEventListener('load', () => URL.revokeObjectURL(shown), { once: true });
+
+  const replaceWith = (file, note) => {
+    if (!isImageFile(file)) { toast('That is not an image (use PNG, JPG, GIF or WebP).'); return; }
+    img.replacement = new File([file], replacementName(img.path, file), { type: file.type });
+    img.note = note;
+    img.include = true;
+    changed();
+    toast('Image replaced with the translated version.');
+  };
+
+  const include = el('input', { type: 'checkbox', checked: img.include });
+  include.addEventListener('change', () => { img.include = include.checked; changed(); });
+
+  const upload = el('input', { type: 'file', accept: 'image/*', hidden: true });
+  upload.addEventListener('change', () => { const f = upload.files[0]; upload.value = ''; if (f) replaceWith(f, `Uploaded ${f.name}`); });
+
+  const btn = (label, title, onclick) => el('button', { type: 'button', class: 'small', title, onclick }, label);
+  const fig = el('figure', { class: `img-tool${img.include ? '' : ' off'}${img.replacement ? ' replaced' : ''}` },
+    img.replacement ? el('span', { class: 'pill ok img-badge' }, 'Translated image') : null,
+    pic,
+    el('label', {}, include, 'Attach to translation'),
+    el('div', { class: 'img-actions' },
+      btn('Copy image', 'Copy the original image, e.g. to paste into an AI image tool and ask for an Urdu version', async () => {
+        try {
+          await copyImageToClipboard(await imageFile(img.path));
+          toast('Original image copied. Paste it into your AI tool or image editor.');
+        } catch (e) { toast(`Could not copy the image: ${e.message}`, 5000); }
+      }),
+      btn('Download', 'Save the original image as a file', async () => {
+        try { const f = await imageFile(img.path); downloadBlob(f, f.name); } catch (e) { toast(`Could not download: ${e.message}`); }
+      }),
+      btn('Paste new image', 'Use the image currently on the clipboard as the translated version', async () => {
+        try {
+          const f = await readImageFromClipboard(replacementName(img.path, { type: 'image/png' }).replace(/\.png$/, ''));
+          if (!f) { toast('No image on the clipboard. Copy the translated image first (right-click → Copy image).', 5000); return; }
+          replaceWith(f, 'Pasted from clipboard');
+        } catch (e) { toast(`Could not read the clipboard: ${e.message}`, 5000); }
+      }),
+      btn('Upload new…', 'Choose the translated image file', () => upload.click()),
+      img.replacement ? btn('Use original', 'Go back to the original image', () => { img.replacement = null; img.note = ''; changed(); }) : null,
+      upload,
+    ),
+    img.note ? el('div', { class: 'field-src' }, img.note) : null,
+  );
+  // Drag a translated image file onto the figure to replace.
+  fig.addEventListener('dragover', (ev) => { ev.preventDefault(); fig.classList.add('drop'); });
+  fig.addEventListener('dragleave', () => fig.classList.remove('drop'));
+  fig.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    fig.classList.remove('drop');
+    const f = [...(ev.dataTransfer?.files ?? [])].find(isImageFile);
+    if (f) replaceWith(f, `Dropped ${f.name}`);
+  });
+  return fig;
 }
 
 function markDirty() {
@@ -837,7 +912,7 @@ async function saveDraft() {
   await store.set(draftKey(editor.id, state.queue.language), {
     questionHtml: qf.getValue(),
     stepsHtml: steps.map((f) => f.getValue()),
-    imageChoices: steps.map((f) => [...f.choices]),
+    imageState: await Promise.all(steps.map((f) => f.getImageState())),
     savedAt: Date.now(),
   });
   const item = state.queue.items[editor.id];
@@ -873,7 +948,7 @@ async function submitCurrent() {
     const stepPayload = [];
     for (const f of steps) {
       const files = [];
-      for (let i = 0; i < f.copyImages.length; i++) if (f.choices[i]) files.push(await imageFile(f.copyImages[i]));
+      for (const img of f.images) if (img.include) files.push(img.replacement ?? await imageFile(img.path));
       stepPayload.push({ html: f.getValue(), images: files });
     }
     const form = () => buildSubmitForm(language, qf.getValue(), stepPayload);

@@ -102,6 +102,14 @@ details#add-unit summary { cursor: pointer; color: var(--brand); margin-bottom: 
 .add-unit-row label { margin: 0; }
 @media (max-width: 600px) { .add-unit-row { grid-template-columns: 1fr; } }
 
+/* Translated step images */
+.img-tool { position: relative; padding: 8px; border: 1px dashed var(--border); border-radius: 8px; max-width: 100%; }
+.img-tool.replaced { border-style: solid; border-color: var(--ok); }
+.img-tool.drop { border-color: var(--focus); background: var(--info-bg); }
+.img-tool.off img { opacity: .3; }
+.img-badge { position: absolute; top: 12px; left: 12px; }
+.img-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+
 /* Reviewer */
 label.inline { display: flex; align-items: center; gap: 8px; margin: 0; }
 label.inline select { width: auto; margin: 0; }
